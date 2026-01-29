@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💬 Chat Room</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/emoji-mart/css/emoji-mart.css" />
+</head>
+<body class="chat-page">
+  <div class="chat-container">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="user-profile">
+          <div class="avatar" id="userAvatar">
+            <i class="fas fa-user"></i>
+          </div>
+          <div class="user-info">
+            <span id="usernameDisplay">User</span>
+            <span class="status online" id="userStatus">Online</span>
+          </div>
+        </div>
+        <button class="new-room-btn" id="newRoomBtn">
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+
+      <!-- Search -->
+      <div class="search-container">
+        <input type="text" id="messageSearch" placeholder="Search messages..." />
+        <i class="fas fa-search search-icon"></i>
+      </div>
+
+      <!-- Online Users -->
+      <div class="section-title">
+        <i class="fas fa-users"></i>
+        Online Users <span id="onlineCount">0</span>
+      </div>
+      <div class="online-users" id="onlineUsers">
+        <!-- Filled by JavaScript -->
+      </div>
+
+      <!-- Rooms -->
+      <div class="section-title">
+        <i class="fas fa-door-open"></i>
+        Chat Rooms
+      </div>
+      <div class="room-list" id="roomList">
+        <!-- Filled by JavaScript -->
+      </div>
+
+      <!-- Logout -->
+      <button class="logout-btn" id="logoutBtn">
+        <i class="fas fa-sign-out-alt"></i> Logout
+      </button>
+    </aside>
+
+    <!-- MAIN CHAT -->
+    <main class="main-chat">
+      <!-- Chat Header -->
+      <div class="chat-header">
+        <div class="room-info">
+          <h2 id="currentRoom">General</h2>
+          <div class="room-meta">
+            <span class="active-users">
+              <i class="fas fa-circle online-dot"></i>
+              <span id="roomUserCount">0</span> online
+            </span>
+            <span class="typing-indicator" id="typingIndicator"></span>
+          </div>
+        </div>
+        <div class="chat-actions">
+          <button class="action-btn" id="emojiBtn" title="Emoji">
+            <i class="far fa-smile"></i>
+          </button>
+          <button class="action-btn" id="attachBtn" title="Attach File">
+            <i class="fas fa-paperclip"></i>
+          </button>
+          <button class="action-btn" id="searchBtn" title="Search">
+            <i class="fas fa-search"></i>
+          </button>
+          <button class="action-btn mobile-menu-btn" id="mobileMenuBtn">
+            <i class="fas fa-bars"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Messages Container -->
+      <div class="messages-container">
+        <div class="messages" id="messages">
+          <!-- Messages will be inserted here -->
+        </div>
+        <div class="load-more" id="loadMore">
+          <button id="loadMoreBtn">Load older messages</button>
+        </div>
+      </div>
+
+      <!-- Emoji Picker (Hidden by default) -->
+      <div class="emoji-picker" id="emojiPicker">
+        <!-- Emoji picker will be loaded here -->
+      </div>
+
+      <!-- Message Input -->
+      <div class="message-input-container">
+        <div class="input-wrapper">
+          <textarea 
+            id="messageInput" 
+            placeholder="Type a message..." 
+            rows="1"
+          ></textarea>
+          <div class="input-actions">
+            <button class="input-action-btn" id="emojiToggleBtn">
+              <i class="far fa-smile"></i>
+            </button>
+            <label for="fileUpload" class="input-action-btn" title="Upload file">
+              <i class="fas fa-paperclip"></i>
+              <input type="file" id="fileUpload" multiple style="display: none;" />
+            </label>
+          </div>
+        </div>
+        <button id="sendButton" class="send-btn">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </div>
+
+      <!-- File Preview -->
+      <div class="file-preview" id="filePreview"></div>
+    </main>
+
+    <!-- Search Modal -->
+    <div class="search-modal" id="searchModal">
+      <div class="search-modal-content">
+        <div class="search-modal-header">
+          <h3><i class="fas fa-search"></i> Search Messages</h3>
+          <button class="close-search">&times;</button>
+        </div>
+        <div class="search-input-group">
+          <input type="text" id="globalSearch" placeholder="Enter search term..." />
+          <button id="performSearch">Search</button>
+        </div>
+        <div class="search-results" id="searchResults"></div>
+      </div>
+    </div>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emoji-mart/react"></script>
+  <script src="chat.js"></script>
+</body>
+</html>

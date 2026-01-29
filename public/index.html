@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- PWA Meta Tags -->
+<meta name="application-name" content="RealTime Chat">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ChatApp">
+<meta name="description" content="Professional real-time chat application">
+<meta name="format-detection" content="telephone=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="msapplication-TileColor" content="#007AFF">
+<meta name="msapplication-tap-highlight" content="no">
+<meta name="theme-color" content="#007AFF">
+
+<!-- Apple Touch Icons -->
+<link rel="apple-touch-icon" href="/icon-152x152.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/icon-152x152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/icon-192x192.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/icon-152x152.png">
+
+<!-- Manifest -->
+<link rel="manifest" href="/manifest.json">
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" sizes="32x32" href="/icon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/icon-16x16.png">
+<link rel="shortcut icon" href="/favicon.ico">
+
+<!-- Splash Screens for iOS -->
+<link href="/splash-iphone5.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)" rel="apple-touch-startup-image" />
+<link href="/splash-iphone6.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" rel="apple-touch-startup-image" />
+<link href="/splash-iphoneplus.png" media="(device-width: 621px) and (device-height: 1104px) and (-webkit-device-pixel-ratio: 3)" rel="apple-touch-startup-image" />
+<link href="/splash-iphonex.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" rel="apple-touch-startup-image" />
+<link href="/splash-ipad.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" rel="apple-touch-startup-image" />
+<link href="/splash-ipadpro1.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2)" rel="apple-touch-startup-image" />
+<link href="/splash-ipadpro2.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" rel="apple-touch-startup-image" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>💬 Real‑Time Chat</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Additional inline styles to prevent any overflow */
+    html, body {
+      overflow: hidden;
+      height: 100%;
+    }
+    
+    /* Force all content to stay within viewport */
+    .auth-page {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      overflow: auto; /* Only if needed, but should be minimal */
+    }
+  </style>
+</head>
+<body class="auth-page">
+  <div class="auth-wrapper">
+    <div class="auth-container">
+      <div class="auth-header">
+        <h1><i class="fas fa-comments"></i> ChatApp</h1>
+        <p class="tagline">Connect instantly</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="tab active" data-tab="login">
+          <i class="fas fa-sign-in-alt"></i> Login
+        </button>
+        <button class="tab" data-tab="register">
+          <i class="fas fa-user-plus"></i> Register
+        </button>
+      </div>
+
+      <form id="loginForm" class="auth-form active">
+        <h2><i class="fas fa-user-circle"></i> Welcome Back</h2>
+        <div class="form-group">
+          <input id="loginUsername" placeholder="Username" required />
+          <i class="fas fa-user input-icon"></i>
+        </div>
+        <div class="form-group">
+          <input id="loginPassword" type="password" placeholder="Password" required />
+          <i class="fas fa-lock input-icon"></i>
+        </div>
+        <button type="submit" class="btn-submit">
+          <i class="fas fa-paper-plane"></i> Login
+        </button>
+        <div class="error" id="loginError"></div>
+        <div class="auth-links">
+          <a href="#" class="forgot-password">Forgot password?</a>
+        </div>
+      </form>
+
+      <form id="registerForm" class="auth-form">
+        <h2><i class="fas fa-user-edit"></i> Create Account</h2>
+        <div class="form-group">
+          <input id="registerUsername" placeholder="Username" required />
+          <i class="fas fa-user input-icon"></i>
+        </div>
+        <div class="form-group">
+          <input id="registerEmail" type="email" placeholder="Email" required />
+          <i class="fas fa-envelope input-icon"></i>
+        </div>
+        <div class="form-group">
+          <input id="registerPassword" type="password" placeholder="Password" required />
+          <i class="fas fa-lock input-icon"></i>
+        </div>
+        <button type="submit" class="btn-submit">
+          <i class="fas fa-user-plus"></i> Register
+        </button>
+        <div class="error" id="registerError"></div>
+        <p class="terms">
+          By registering, you agree to our 
+          <a href="#" class="terms-link">Terms</a> & 
+          <a href="#" class="terms-link">Privacy</a>
+        </p>
+      </form>
+
+      <div class="features">
+        <div class="feature">
+          <i class="fas fa-bolt"></i>
+          <span>Real-time</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-users"></i>
+          <span>Multiple rooms</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-file-upload"></i>
+          <span>File sharing</span>
+        </div>
+        <div class="feature">
+          <i class="fas fa-mobile-alt"></i>
+          <span>Mobile friendly</span>
+        </div>
+      </div>
+    </div>
+
+    <footer class="auth-footer">
+      <div class="footer-content">
+        <div class="footer-logo">
+          <i class="fas fa-comment-dots"></i>
+          <span>ChatApp</span>
+        </div>
+        <div class="footer-info">
+          <p>© 2026 ChatApp</p>
+          <p class="by-bizzy">BY BIZZY MV</p>
+        </div>
+        <div class="footer-links">
+          <a href="#" title="GitHub"><i class="fab fa-github"></i></a>
+          <a href="#" title="Help"><i class="fas fa-question-circle"></i></a>
+          <a href="#" title="Contact"><i class="fas fa-envelope"></i></a>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="auth.js"></script>
+
+  <!-- PWA Install Prompt -->
+<div id="installContainer" class="install-container" style="display: none;">
+  <div class="install-popup">
+    <div class="install-header">
+      <i class="fas fa-download"></i>
+      <h3>Install ChatApp</h3>
+      <button id="closeInstall" class="close-btn">&times;</button>
+    </div>
+    <div class="install-body">
+      <p>Install our app for better experience:</p>
+      <ul>
+        <li><i class="fas fa-bolt"></i> Faster loading</li>
+        <li><i class="fas fa-wifi-slash"></i> Works offline</li>
+        <li><i class="fas fa-bell"></i> Push notifications</li>
+        <li><i class="fas fa-mobile-alt"></i> App-like experience</li>
+      </ul>
+    </div>
+    <div class="install-footer">
+      <button id="installButton" class="install-btn">
+        <i class="fas fa-download"></i> Install Now
+      </button>
+      <button id="laterButton" class="later-btn">Maybe Later</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// PWA Installation Handler
+let deferredPrompt;
+const installContainer = document.getElementById('installContainer');
+const installButton = document.getElementById('installButton');
+const closeInstall = document.getElementById('closeInstall');
+const laterButton = document.getElementById('laterButton');
+
+// Listen for beforeinstallprompt event
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Prevent Chrome 67 and earlier from automatically showing the prompt
+  e.preventDefault();
+  // Stash the event so it can be triggered later
+  deferredPrompt = e;
+  
+  // Show install prompt after 5 seconds
+  setTimeout(() => {
+    if (!localStorage.getItem('installDismissed')) {
+      installContainer.style.display = 'flex';
+    }
+  }, 5000);
+});
+
+// Install button click handler
+installButton.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  
+  // Show the install prompt
+  deferredPrompt.prompt();
+  
+  // Wait for the user to respond to the prompt
+  const { outcome } = await deferredPrompt.userChoice;
+  
+  // Hide the install container
+  installContainer.style.display = 'none';
+  
+  // We've used the prompt, and can't use it again, discard it
+  deferredPrompt = null;
+  
+  // Track installation
+  if (outcome === 'accepted') {
+    console.log('User accepted the install prompt');
+    localStorage.setItem('appInstalled', 'true');
+  } else {
+    console.log('User dismissed the install prompt');
+  }
+});
+
+// Close button handler
+closeInstall.addEventListener('click', () => {
+  installContainer.style.display = 'none';
+  localStorage.setItem('installDismissed', 'true');
+});
+
+// Later button handler
+laterButton.addEventListener('click', () => {
+  installContainer.style.display = 'none';
+  localStorage.setItem('installDismissed', 'true');
+});
+
+// Check if app is already installed
+window.addEventListener('appinstalled', () => {
+  console.log('PWA was installed');
+  localStorage.setItem('appInstalled', 'true');
+  installContainer.style.display = 'none';
+});
+
+// Detect if running as standalone PWA
+if (window.matchMedia('(display-mode: standalone)').matches || 
+    window.navigator.standalone === true) {
+  console.log('Running as PWA');
+  localStorage.setItem('appInstalled', 'true');
+}
+</script>
+
+<style>
+.install-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.install-popup {
+  background: white;
+  border-radius: 15px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(50px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.install-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.install-header i {
+  font-size: 24px;
+}
+
+.install-header h3 {
+  margin: 0;
+  flex: 1;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.3s;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.install-body {
+  padding: 20px;
+}
+
+.install-body p {
+  color: #333;
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.install-body ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.install-body li {
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #555;
+}
+
+.install-body li i {
+  color: #007AFF;
+  width: 20px;
+}
+
+.install-footer {
+  padding: 15px 20px 20px;
+  display: flex;
+  gap: 10px;
+  border-top: 1px solid #eee;
+}
+
+.install-btn {
+  flex: 1;
+  background: #007AFF;
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.3s;
+}
+
+.install-btn:hover {
+  background: #0056CC;
+}
+
+.later-btn {
+  flex: 1;
+  background: #f0f0f0;
+  color: #666;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.later-btn:hover {
+  background: #e0e0e0;
+}
+</style>
+</body>
+</html>
