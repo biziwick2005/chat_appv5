@@ -1,3 +1,10 @@
+// ==============================
+// AUTHENTICATION & PWA
+// ==============================
+
+// Use unique variable name to avoid conflicts
+let pwaInstallPrompt = null;
+
 const tabs = document.querySelectorAll('.tab');
 const forms = document.querySelectorAll('.auth-form');
 const API_BASE = '/api/auth';
@@ -9,259 +16,262 @@ tabs.forEach(tab => {
     forms.forEach(f => f.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById(tab.dataset.tab + 'Form').classList.add('active');
-    
-    // Clear errors
     document.querySelectorAll('.error').forEach(el => el.textContent = '');
   };
 });
 
 // Login form
-const loginForm = document.getElementById('loginForm');
-const loginUsername = document.getElementById('loginUsername');
-const loginPassword = document.getElementById('loginPassword');
-const loginError = document.getElementById('loginError');
-
-loginForm.onsubmit = async e => {
+document.getElementById('loginForm').onsubmit = async e => {
   e.preventDefault();
-  const submitBtn = loginForm.querySelector('button');
-  const originalText = submitBtn.innerHTML;
+  const btn = e.target.querySelector('button');
+  const original = btn.innerHTML;
+  const errorEl = document.getElementById('loginError');
   
-  // Show loading state
-  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
-  submitBtn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
+  btn.disabled = true;
   
   try {
     const res = await fetch(`${API_BASE}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: loginUsername.value.trim(),
-        password: loginPassword.value
+        username: document.getElementById('loginUsername').value.trim(),
+        password: document.getElementById('loginPassword').value
       })
     });
     
     const data = await res.json();
     
-    if (!res.ok) {
-      loginError.textContent = data.message || 'Login failed';
-      loginError.style.display = 'block';
-      return;
-    }
+    if (!res.ok) throw new Error(data.message || 'Login failed');
     
-    // Store auth data
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
     
-    // Show success message
-    loginError.textContent = 'Login successful! Redirecting...';
-    loginError.style.color = '#10b981';
-    loginError.style.display = 'block';
+    errorEl.textContent = 'Login successful! Redirecting...';
+    errorEl.style.color = '#10b981';
     
-    // Redirect after delay
-    setTimeout(() => {
-      window.location.href = 'chat.html';
-    }, 1000);
+    setTimeout(() => location.href = 'chat.html', 1000);
     
   } catch (error) {
-    console.error('Login error:', error);
-    loginError.textContent = 'Network error. Please try again.';
-    loginError.style.display = 'block';
+    errorEl.textContent = error.message;
   } finally {
-    submitBtn.innerHTML = originalText;
-    submitBtn.disabled = false;
+    btn.innerHTML = original;
+    btn.disabled = false;
   }
 };
 
 // Register form
-const registerForm = document.getElementById('registerForm');
-const registerUsername = document.getElementById('registerUsername');
-const registerEmail = document.getElementById('registerEmail');
-const registerPassword = document.getElementById('registerPassword');
-const registerError = document.getElementById('registerError');
-
-registerForm.onsubmit = async e => {
+document.getElementById('registerForm').onsubmit = async e => {
   e.preventDefault();
-  const submitBtn = registerForm.querySelector('button');
-  const originalText = submitBtn.innerHTML;
+  const btn = e.target.querySelector('button');
+  const original = btn.innerHTML;
+  const errorEl = document.getElementById('registerError');
+  const password = document.getElementById('registerPassword').value;
   
-  // Show loading state
-  submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
-  submitBtn.disabled = true;
-  
-  // Validation
-  if (registerPassword.value.length < 6) {
-    registerError.textContent = 'Password must be at least 6 characters';
-    registerError.style.display = 'block';
-    submitBtn.innerHTML = originalText;
-    submitBtn.disabled = false;
+  if (password.length < 6) {
+    errorEl.textContent = 'Password must be at least 6 characters';
+    btn.innerHTML = original;
+    btn.disabled = false;
     return;
   }
+  
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
+  btn.disabled = true;
   
   try {
     const res = await fetch(`${API_BASE}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: registerUsername.value.trim(),
-        email: registerEmail.value.trim(),
-        password: registerPassword.value
+        username: document.getElementById('registerUsername').value.trim(),
+        email: document.getElementById('registerEmail').value.trim(),
+        password: password
       })
     });
     
     const data = await res.json();
     
-    if (!res.ok) {
-      registerError.textContent = data.message || 'Registration failed';
-      registerError.style.display = 'block';
-      return;
-    }
+    if (!res.ok) throw new Error(data.message || 'Registration failed');
     
-    // Show success message and switch to login
-    registerError.textContent = data.message || 'Registration successful!';
-    registerError.style.color = '#10b981';
-    registerError.style.display = 'block';
+    errorEl.textContent = data.message || 'Registration successful!';
+    errorEl.style.color = '#10b981';
     
-    // Clear form and switch to login after delay
     setTimeout(() => {
-      registerForm.reset();
+      e.target.reset();
       tabs[0].click();
-      registerError.style.display = 'none';
+      errorEl.style.display = 'none';
     }, 2000);
     
   } catch (error) {
-    console.error('Registration error:', error);
-    registerError.textContent = 'Network error. Please try again.';
-    registerError.style.display = 'block';
+    errorEl.textContent = error.message;
   } finally {
-    submitBtn.innerHTML = originalText;
-    submitBtn.disabled = false;
+    btn.innerHTML = original;
+    btn.disabled = false;
   }
 };
 
-// Form validation feedback
-const formGroups = document.querySelectorAll('.form-group input');
-formGroups.forEach(input => {
-  input.addEventListener('focus', () => {
-    input.parentElement.classList.add('focused');
-  });
-  
-  input.addEventListener('blur', () => {
-    input.parentElement.classList.remove('focused');
-  });
-});
+// Check token
+if (localStorage.getItem('token')) {
+  fetch(`${API_BASE}/me`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+  })
+  .then(res => {
+    if (res.ok) location.href = 'chat.html';
+    else localStorage.clear();
+  })
+  .catch(() => localStorage.clear());
+}
 
-// Check for existing token
-window.addEventListener('load', () => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    // Verify token
-    fetch(`${API_BASE}/me`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    .then(res => {
-      if (res.ok) {
-        window.location.href = 'chat.html';
-      } else {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
-    })
-    .catch(() => {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-    });
-  }
-});
+// ==============================
+// PWA INSTALLATION
+// ==============================
 
-
-
-// Register Service Worker for PWA
+// Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
-      .then(registration => {
-        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-        
-        // Check for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          console.log('New service worker found!');
-          
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New update available
-              showUpdateNotification();
-            }
-          });
-        });
+      .then(reg => {
+        console.log('✅ ServiceWorker registered with scope:', reg.scope);
       })
-      .catch(error => {
-        console.log('ServiceWorker registration failed: ', error);
+      .catch(err => {
+        console.error('❌ ServiceWorker registration failed:', err);
       });
   });
 }
 
-// Handle app updates
-function showUpdateNotification() {
-  if (confirm('A new version is available. Update now?')) {
-    // Reload to activate new service worker
-    window.location.reload();
-  }
-}
-
-// Check if app is installed
-function checkIfPWAInstalled() {
-  // Method 1: Check display mode
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+// Install Prompt Event
+window.addEventListener('beforeinstallprompt', (e) => {
+  console.log('🎯 beforeinstallprompt event fired!');
   
-  // Method 2: Check iOS standalone
-  const isIOSStandalone = window.navigator.standalone === true;
+  // Prevent default prompt
+  e.preventDefault();
   
-  // Method 3: Check URL parameters
-  const urlParams = new URLSearchParams(window.location.search);
-  const isFromShare = urlParams.has('share-target');
+  // Store the event
+  pwaInstallPrompt = e;
   
-  return isStandalone || isIOSStandalone || isFromShare;
-}
-
-// Show install button if not installed
-if (!checkIfPWAInstalled() && !localStorage.getItem('appInstalled')) {
-  // Show install button in auth page
-  const installBtn = document.createElement('button');
-  installBtn.id = 'pwaInstallBtn';
-  installBtn.className = 'pwa-install-btn';
-  installBtn.innerHTML = '<i class="fas fa-download"></i> Install App';
-  installBtn.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: #007AFF;
-    color: white;
-    border: none;
-    border-radius: 50px;
-    padding: 12px 20px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3);
-    z-index: 1000;
-  `;
+  // Make it globally available
+  window.pwaInstallPrompt = pwaInstallPrompt;
   
-  document.body.appendChild(installBtn);
+  console.log('✅ Install prompt stored. Will show in 3 seconds...');
   
-  installBtn.addEventListener('click', () => {
-    if (window.deferredPrompt) {
-      window.deferredPrompt.prompt();
-      window.deferredPrompt.userChoice.then((choiceResult) => {
-        if (choiceResult.outcome === 'accepted') {
-          console.log('User accepted the install prompt');
-          installBtn.style.display = 'none';
-          localStorage.setItem('appInstalled', 'true');
-        }
-        window.deferredPrompt = null;
-      });
+  // Show install prompt after delay
+  setTimeout(() => {
+    if (pwaInstallPrompt && 
+        !localStorage.getItem('installDismissed') &&
+        !localStorage.getItem('appInstalled')) {
+      
+      console.log('📱 Showing install prompt');
+      
+      // Connect install button
+      const installBtn = document.getElementById('installButton');
+      if (installBtn) {
+        installBtn.onclick = async () => {
+          if (pwaInstallPrompt) {
+            try {
+              pwaInstallPrompt.prompt();
+              const choice = await pwaInstallPrompt.userChoice;
+              
+              if (choice.outcome === 'accepted') {
+                console.log('✅ User accepted installation');
+                localStorage.setItem('appInstalled', 'true');
+                showToast('App installed successfully!', 'success');
+              } else {
+                console.log('❌ User dismissed installation');
+                localStorage.setItem('installDismissed', 'true');
+              }
+              
+              // Hide the prompt
+              document.getElementById('installContainer').style.display = 'none';
+              pwaInstallPrompt = null;
+              window.pwaInstallPrompt = null;
+              
+            } catch (error) {
+              console.error('Install error:', error);
+            }
+          }
+        };
+      }
+      
+      // Show the container
+      const container = document.getElementById('installContainer');
+      if (container) {
+        container.style.display = 'flex';
+      }
     }
-  });
+  }, 3000);
+});
+
+// App installed event
+window.addEventListener('appinstalled', () => {
+  console.log('🎉 PWA was installed');
+  localStorage.setItem('appInstalled', 'true');
+  
+  const container = document.getElementById('installContainer');
+  if (container) {
+    container.style.display = 'none';
+  }
+  
+  showToast('App installed successfully!', 'success');
+});
+
+// Check if already running as PWA
+if (window.matchMedia('(display-mode: standalone)').matches || 
+    window.navigator.standalone === true) {
+  console.log('📱 Running as installed PWA');
+  localStorage.setItem('appInstalled', 'true');
 }
+
+// Toast function
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    background: ${type === 'success' ? '#4CAF50' : 
+                type === 'error' ? '#f44336' : '#2196F3'};
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// Debug functions
+window.testPWA = function() {
+  console.log('🔧 PWA Debug:');
+  console.log('- pwaInstallPrompt:', pwaInstallPrompt ? 'Available' : 'Not available');
+  console.log('- window.pwaInstallPrompt:', window.pwaInstallPrompt ? 'Available' : 'Not available');
+  console.log('- appInstalled:', localStorage.getItem('appInstalled'));
+  console.log('- installDismissed:', localStorage.getItem('installDismissed'));
+  console.log('- Display mode:', window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser');
+  
+  if (pwaInstallPrompt) {
+    console.log('🎯 Triggering install prompt...');
+    pwaInstallPrompt.prompt();
+  } else {
+    console.log('❌ No install prompt available');
+    console.log('💡 Wait 3-5 seconds after page load');
+  }
+};
+
+window.clearPWA = function() {
+  console.log('🗑️ Clearing PWA data...');
+  
+  localStorage.removeItem('appInstalled');
+  localStorage.removeItem('installDismissed');
+  
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations()
+      .then(regs => regs.forEach(r => r.unregister()));
+  }
+  
+  console.log('✅ Cleared. Reloading...');
+  setTimeout(() => location.reload(), 1000);
+};
+
+console.log('✅ auth.js loaded with PWA support');

@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PWA Test Page</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      padding: 20px; 
+      max-width: 800px; 
+      margin: 0 auto; 
+    }
+    .test { 
+      margin: 10px 0; 
+      padding: 15px; 
+      border-left: 4px solid; 
+      border-radius: 4px;
+    }
+    .pass { 
+      border-color: #4CAF50; 
+      background: #E8F5E9; 
+    }
+    .fail { 
+      border-color: #f44336; 
+      background: #FFEBEE; 
+    }
+    .warning { 
+      border-color: #FF9800; 
+      background: #FFF3E0; 
+    }
+    button { 
+      margin: 5px; 
+      padding: 10px 15px; 
+      background: #2196F3; 
+      color: white; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+    }
+    button:hover { background: #1976D2; }
+    code { background: #f5f5f5; padding: 2px 5px; border-radius: 3px; }
+    .section { margin: 30px 0; padding: 20px; background: #f9f9f9; border-radius: 8px; }
+    h2 { color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+    .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin: 15px 0; }
+    .icon-item { text-align: center; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+    .icon-item img { max-width: 64px; height: auto; }
+  </style>
+</head>
+<body>
+  <h1>🔧 PWA Installation Test</h1>
+  
+  <div class="section">
+    <h2>📊 PWA Requirements Test</h2>
+    <div id="requirements"></div>
+  </div>
+  
+  <div class="section">
+    <h2>🎯 Installation Test</h2>
+    <div id="installation"></div>
+    <div style="margin: 15px 0;">
+      <button onclick="triggerInstall()" id="manualInstallBtn" style="display:none">
+        <i class="fas fa-download"></i> Trigger Install Prompt
+      </button>
+      <button onclick="checkServiceWorker()">
+        <i class="fas fa-sync"></i> Check Service Worker
+      </button>
+      <button onclick="clearStorage()">
+        <i class="fas fa-trash"></i> Clear PWA Data
+      </button>
+    </div>
+  </div>
+  
+  <div class="section">
+    <h2>📱 PWA Icons Check</h2>
+    <div id="icons"></div>
+  </div>
+  
+  <div class="section">
+    <h2>🔧 Debug Info</h2>
+    <div id="debug"></div>
+  </div>
+  
+  <script>
+    // Test results container
+    const requirementsDiv = document.getElementById('requirements');
+    const installationDiv = document.getElementById('installation');
+    const iconsDiv = document.getElementById('icons');
+    const debugDiv = document.getElementById('debug');
+    
+    // Test PWA requirements
+    function testRequirements() {
+      console.log('🧪 Testing PWA requirements...');
+      
+      const tests = [
+        { 
+          name: 'HTTPS/SSL', 
+          test: () => window.location.protocol === 'https:',
+          message: 'Required for PWA installation',
+          critical: true
+        },
+        { 
+          name: 'Service Worker API', 
+          test: () => 'serviceWorker' in navigator,
+          message: 'Browser supports service workers',
+          critical: true
+        },
+        { 
+          name: 'Web App Manifest', 
+          test: () => document.querySelector('link[rel="manifest"]') !== null,
+          message: 'Manifest file linked in HTML',
+          critical: true
+        },
+        { 
+          name: 'Install Prompt API', 
+          test: () => 'beforeinstallprompt' in window,
+          message: 'Browser supports install prompts',
+          critical: true
+        },
+        { 
+          name: 'Standalone Mode', 
+          test: () => window.matchMedia('(display-mode: standalone)').matches,
+          message: 'Already running as installed PWA'
+        },
+        { 
+          name: 'iOS Standalone', 
+          test: () => window.navigator.standalone === true,
+          message: 'Running as iOS standalone app'
+        },
+        { 
+          name: 'deferredPrompt', 
+          test: () => window.deferredPrompt !== undefined,
+          message: 'Install prompt is available'
+        }
+      ];
+      
+      requirementsDiv.innerHTML = '';
+      
+      tests.forEach(test => {
+        const result = test.test();
+        const div = document.createElement('div');
+        div.className = `test ${result ? 'pass' : test.critical ? 'fail' : 'warning'}`;
+        div.innerHTML = `
+          <strong>${test.name}:</strong> ${result ? '✅ PASS' : test.critical ? '❌ FAIL' : '⚠️ INFO'}
+          <br><small>${test.message}</small>
+        `;
+        requirementsDiv.appendChild(div);
+        
+        // Show manual install button if deferredPrompt exists
+        if (test.name === 'deferredPrompt' && result) {
+          document.getElementById('manualInstallBtn').style.display = 'inline-block';
+        }
+      });
+    }
+    
+    // Test installation status
+    function testInstallation() {
+      console.log('🧪 Testing installation status...');
+      
+      const tests = [
+        { 
+          name: 'App Installed', 
+          test: () => localStorage.getItem('appInstalled') === 'true',
+          message: 'User has installed the app'
+        },
+        { 
+          name: 'Install Dismissed', 
+          test: () => localStorage.getItem('installDismissed') === 'true',
+          message: 'User dismissed install prompt'
+        },
+        { 
+          name: 'Service Worker Registered', 
+          test: () => navigator.serviceWorker.controller !== null,
+          message: 'Service worker is controlling page'
+        },
+        { 
+          name: 'Display Mode', 
+          test: () => {
+            const mode = getDisplayMode();
+            return mode !== 'browser';
+          },
+          message: `Current display mode: ${getDisplayMode()}`
+        }
+      ];
+      
+      installationDiv.innerHTML = '';
+      
+      tests.forEach(test => {
+        const result = test.test();
+        const div = document.createElement('div');
+        div.className = `test ${result ? 'pass' : 'warning'}`;
+        div.innerHTML = `
+          <strong>${test.name}:</strong> ${result ? '✅ YES' : '❌ NO'}
+          <br><small>${test.message}</small>
+        `;
+        installationDiv.appendChild(div);
+      });
+    }
+    
+    // Check PWA icons
+    function checkIcons() {
+      console.log('🧪 Checking PWA icons...');
+      
+      const icons = [
+        '/icon-72x72.png',
+        '/icon-96x96.png',
+        '/icon-128x128.png',
+        '/icon-144x144.png',
+        '/icon-152x152.png',
+        '/icon-192x192.png',
+        '/icon-384x384.png',
+        '/icon-512x512.png'
+      ];
+      
+      iconsDiv.innerHTML = '<div class="icon-grid">';
+      
+      icons.forEach(icon => {
+        const img = new Image();
+        img.onload = function() {
+          const div = document.createElement('div');
+          div.className = 'icon-item pass';
+          div.innerHTML = `
+            <img src="${icon}" alt="Icon">
+            <div><small>${icon.split('/').pop()}</small></div>
+            <div><small>✅ Loaded</small></div>
+          `;
+          iconsDiv.querySelector('.icon-grid').appendChild(div);
+        };
+        
+        img.onerror = function() {
+          const div = document.createElement('div');
+          div.className = 'icon-item fail';
+          div.innerHTML = `
+            <div style="font-size: 2rem;">❌</div>
+            <div><small>${icon.split('/').pop()}</small></div>
+            <div><small>Missing</small></div>
+          `;
+          iconsDiv.querySelector('.icon-grid').appendChild(div);
+        };
+        
+        img.src = icon;
+      });
+      
+      iconsDiv.innerHTML += '</div>';
+    }
+    
+    // Show debug info
+    function showDebugInfo() {
+      console.log('🔍 Showing debug info...');
+      
+      const info = {
+        'User Agent': navigator.userAgent,
+        'Platform': navigator.platform,
+        'Online': navigator.onLine ? 'Yes' : 'No',
+        'Protocol': window.location.protocol,
+        'Host': window.location.host,
+        'LocalStorage Items': Object.keys(localStorage).length,
+        'Service Worker Ready': navigator.serviceWorker.controller ? 'Yes' : 'No',
+        'Display Mode': getDisplayMode(),
+        'Window Size': `${window.innerWidth} × ${window.innerHeight}`,
+        'Pixel Ratio': window.devicePixelRatio,
+        'Touch Support': 'ontouchstart' in window ? 'Yes' : 'No'
+      };
+      
+      debugDiv.innerHTML = '';
+      
+      Object.entries(info).forEach(([key, value]) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'padding: 5px 0; border-bottom: 1px solid #eee;';
+        div.innerHTML = `<strong>${key}:</strong> ${value}`;
+        debugDiv.appendChild(div);
+      });
+    }
+    
+    // Helper functions
+    function getDisplayMode() {
+      if (window.matchMedia('(display-mode: standalone)').matches) return 'standalone';
+      if (window.matchMedia('(display-mode: fullscreen)').matches) return 'fullscreen';
+      if (window.matchMedia('(display-mode: minimal-ui)').matches) return 'minimal-ui';
+      if (window.navigator.standalone === true) return 'ios-standalone';
+      return 'browser';
+    }
+    
+    function triggerInstall() {
+      if (window.deferredPrompt) {
+        console.log('🎯 Triggering install prompt...');
+        window.deferredPrompt.prompt();
+        window.deferredPrompt.userChoice.then(choice => {
+          console.log('User choice:', choice.outcome);
+          alert(`Installation: ${choice.outcome}`);
+          testInstallation();
+        });
+      } else {
+        alert('Install prompt not available yet. Visit the site a few times.');
+      }
+    }
+    
+    function checkServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          console.log('Service Worker Registrations:', registrations);
+          alert(`Found ${registrations.length} service worker(s)`);
+          
+          if (registrations.length > 0) {
+            registrations.forEach((reg, i) => {
+              console.log(`SW ${i}:`, reg.scope, reg.active);
+            });
+          }
+        });
+      } else {
+        alert('Service Worker API not supported');
+      }
+    }
+    
+    function clearStorage() {
+      if (confirm('Clear all PWA storage? This will reset install status.')) {
+        localStorage.removeItem('appInstalled');
+        localStorage.removeItem('installDismissed');
+        localStorage.removeItem('lastUpdateCheck');
+        localStorage.removeItem('lastUpdateShown');
+        
+        // Clear service worker cache
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            registrations.forEach(registration => {
+              registration.unregister();
+            });
+          });
+        }
+        
+        // Clear caches
+        if ('caches' in window) {
+          caches.keys().then(cacheNames => {
+            cacheNames.forEach(cacheName => {
+              caches.delete(cacheName);
+            });
+          });
+        }
+        
+        alert('PWA data cleared! Reload page.');
+        setTimeout(() => location.reload(), 1000);
+      }
+    }
+    
+    // Run all tests on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🔧 Starting PWA tests...');
+      
+      // Wait a bit for service worker to register
+      setTimeout(() => {
+        testRequirements();
+        testInstallation();
+        checkIcons();
+        showDebugInfo();
+        
+        // Listen for beforeinstallprompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+          console.log('🎯 beforeinstallprompt event fired!', e);
+          testRequirements(); // Update test results
+        });
+        
+        // Listen for appinstalled event
+        window.addEventListener('appinstalled', (e) => {
+          console.log('🎉 App installed!', e);
+          testInstallation(); // Update test results
+        });
+        
+        console.log('✅ Tests completed');
+      }, 1000);
+    });
+    
+    // Make functions globally available
+    window.testRequirements = testRequirements;
+    window.testInstallation = testInstallation;
+    window.triggerInstall = triggerInstall;
+    window.checkServiceWorker = checkServiceWorker;
+    window.clearStorage = clearStorage;
+  </script>
+</body>
+</html>

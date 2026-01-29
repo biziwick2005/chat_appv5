@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "build_date": "2024-01-20",
+  "changelog": [
+    "Initial PWA release",
+    "Real-time chat with Socket.io",
+    "File upload support",
+    "Multiple chat rooms",
+    "Online user indicators",
+    "Mobile responsive design",
+    "PWA installation support"
+  ],
+  "update_required": false,
+  "update_message": "",
+  "update_url": "",
+  "pwa_features": {
+    "installable": true,
+    "offline_support": true,
+    "push_notifications": false,
+    "background_sync": true
+  }
+}
