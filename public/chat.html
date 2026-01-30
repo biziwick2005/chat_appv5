@@ -7,6 +7,85 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/emoji-mart/css/emoji-mart.css" />
+  <style>
+    /* Theme toggle button styles (temporary until added to style.css) */
+    .theme-toggle-container {
+      display: flex;
+      align-items: center;
+      margin-left: auto;
+      margin-right: 15px;
+    }
+
+    .theme-toggle-btn {
+      position: relative;
+      width: 60px;
+      height: 30px;
+      border-radius: 30px;
+      background: linear-gradient(145deg, #667eea, #764ba2);
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      transition: all 0.3s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .theme-toggle-btn i {
+      font-size: 14px;
+      z-index: 2;
+      transition: all 0.3s ease;
+    }
+
+    .theme-toggle-btn .fa-moon {
+      color: #fff;
+    }
+
+    .theme-toggle-btn .fa-sun {
+      color: #FFD700;
+    }
+
+    .theme-toggle-slider {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 24px;
+      height: 24px;
+      background: white;
+      border-radius: 50%;
+      transition: all 0.3s ease;
+      z-index: 1;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Dark mode styles */
+    [data-theme="dark"] {
+      color-scheme: dark;
+    }
+
+    @media (max-width: 768px) {
+      .theme-toggle-btn {
+        width: 50px;
+        height: 25px;
+      }
+      
+      .theme-toggle-slider {
+        width: 20px;
+        height: 20px;
+      }
+      
+      .theme-toggle-btn i {
+        font-size: 12px;
+      }
+    }
+  </style>
 </head>
 <body class="chat-page">
   <div class="chat-container">
@@ -71,6 +150,16 @@
             <span class="typing-indicator" id="typingIndicator"></span>
           </div>
         </div>
+        
+        <!-- THEME TOGGLE - ADDED HERE -->
+        <div class="theme-toggle-container">
+          <button id="themeToggle" class="theme-toggle-btn" title="Toggle dark/light mode">
+            <i class="fas fa-moon"></i>
+            <i class="fas fa-sun"></i>
+            <span class="theme-toggle-slider"></span>
+          </button>
+        </div>
+        
         <div class="chat-actions">
           <button class="action-btn" id="emojiBtn" title="Emoji">
             <i class="far fa-smile"></i>
@@ -151,6 +240,83 @@
   <!-- Scripts -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@emoji-mart/react"></script>
+  
+  <!-- Add theme initialization script -->
+  <script>
+    // Theme initialization - Runs immediately
+    (function() {
+      console.log('🌗 Initializing theme...');
+      
+      // Apply theme immediately to prevent flash
+      const savedTheme = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      
+      if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        console.log('Applied dark theme');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        console.log('Applied light theme');
+      }
+    })();
+  </script>
+  
   <script src="chat.js"></script>
+  
+  <!-- Add mobile keyboard fix script -->
+  <script>
+    // Mobile keyboard fix - Runs after chat.js
+    document.addEventListener('DOMContentLoaded', function() {
+      // Mobile keyboard handling
+      if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+        console.log('📱 Mobile device detected - applying keyboard fixes');
+        
+        const messageInput = document.getElementById('messageInput');
+        const messagesContainer = document.querySelector('.messages-container');
+        
+        if (messageInput && messagesContainer) {
+          messageInput.addEventListener('focus', function() {
+            // Add a small delay for keyboard to appear
+            setTimeout(() => {
+              messagesContainer.scrollTop = messagesContainer.scrollHeight;
+              document.body.classList.add('keyboard-open');
+              
+              // Add CSS for keyboard state
+              if (!document.querySelector('#keyboard-fix-css')) {
+                const style = document.createElement('style');
+                style.id = 'keyboard-fix-css';
+                style.textContent = `
+                  .keyboard-open .messages-container {
+                    max-height: 60vh !important;
+                    transition: max-height 0.3s ease;
+                  }
+                  
+                  .keyboard-open .message-input-container {
+                    position: relative;
+                    z-index: 100;
+                  }
+                  
+                  @media (max-width: 768px) and (orientation: portrait) {
+                    .messages-container {
+                      padding-bottom: 20px !important;
+                    }
+                    
+                    .message-input-container {
+                      padding-bottom: env(safe-area-inset-bottom, 15px) !important;
+                    }
+                  }
+                `;
+                document.head.appendChild(style);
+              }
+            }, 200);
+          });
+          
+          messageInput.addEventListener('blur', function() {
+            document.body.classList.remove('keyboard-open');
+          });
+        }
+      }
+    });
+  </script>
 </body>
 </html>

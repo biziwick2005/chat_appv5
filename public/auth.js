@@ -122,6 +122,10 @@ if (localStorage.getItem('token')) {
   .catch(() => localStorage.clear());
 }
 
+
+
+
+
 // ==============================
 // PWA INSTALLATION
 // ==============================

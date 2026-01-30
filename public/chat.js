@@ -1,4 +1,6 @@
-// Global variables
+// ==============================
+// GLOBAL VARIABLES & CONFIG
+// ==============================
 let socket;
 let currentRoom = 1;
 let currentUser = null;
@@ -7,6 +9,9 @@ let messagesLimit = 50;
 let typingTimeout = null;
 let uploadedFiles = [];
 let emojiPicker = null;
+let isTyping = false;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
 // DOM Elements
 const elements = {
@@ -31,35 +36,167 @@ const elements = {
     sidebar: document.querySelector('.sidebar'),
     loadMoreBtn: document.getElementById('loadMoreBtn'),
     loadMore: document.getElementById('loadMore'),
-    roomUserCount: document.getElementById('roomUserCount')
+    roomUserCount: document.getElementById('roomUserCount'),
+    userAvatar: document.getElementById('userAvatar'),
+    themeToggleBtn: document.getElementById('themeToggle'),
+    themeToggleHeader: document.getElementById('themeToggleHeader')
 };
 
-// Initialize the application
+// ==============================
+// INITIALIZATION
+// ==============================
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('🚀 Initializing Chat Application...');
+    
+    // Check authentication
+    if (!await checkAuth()) return;
+    
+    // Initialize theme
+    initTheme();
+    
+    // Initialize app
     await initializeApp();
+    
+    // Setup event listeners
     setupEventListeners();
-    loadRooms();
-    loadOnlineUsers();
+    
+    // Load initial data
+    await loadRooms();
+    await loadOnlineUsers();
+    
+    // Check for updates
+    setTimeout(checkForAppUpdates, 3000);
+    
+    console.log('✅ Chat application initialized successfully');
 });
 
-async function initializeApp() {
+// ==============================
+// AUTHENTICATION
+// ==============================
+async function checkAuth() {
     const token = localStorage.getItem('token');
     const user = localStorage.getItem('user');
     
     if (!token || !user) {
+        console.log('❌ No authentication found, redirecting to login');
         window.location.href = 'index.html';
-        return;
+        return false;
     }
     
     try {
+        // Verify token is still valid
+        const response = await fetch('/api/auth/verify', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Token invalid');
+        }
+        
         currentUser = JSON.parse(user);
         elements.usernameDisplay.textContent = currentUser.username;
         
-        // Initialize Socket.io - UPDATED URL
+        // Set user avatar
+        if (elements.userAvatar) {
+            elements.userAvatar.textContent = currentUser.username.charAt(0).toUpperCase();
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Authentication error:', error);
+        showToast('Session expired. Please login again.', 'error');
+        setTimeout(() => {
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }, 2000);
+        return false;
+    }
+}
+
+// ==============================
+// THEME MANAGEMENT
+// ==============================
+function initTheme() {
+    console.log('🌗 Initializing theme...');
+    
+    // Get saved theme or default to light
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    
+    // Setup toggle buttons
+    [elements.themeToggleBtn, elements.themeToggleHeader].forEach(btn => {
+        if (btn) {
+            btn.addEventListener('click', toggleTheme);
+            updateToggleButton(btn);
+        }
+    });
+    
+    console.log(`✅ Theme initialized: ${savedTheme}`);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    
+    // Set theme
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    
+    // Update all toggle buttons
+    [elements.themeToggleBtn, elements.themeToggleHeader].forEach(btn => {
+        if (btn) updateToggleButton(btn);
+    });
+    
+    console.log(`🌗 Theme changed to: ${newTheme}`);
+    showToast(`Switched to ${newTheme} mode`, 'info');
+}
+
+function updateToggleButton(button) {
+    if (!button) return;
+    
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const slider = button.querySelector('.theme-toggle-slider');
+    
+    if (slider) {
+        if (currentTheme === 'dark') {
+            slider.style.transform = 'translateX(30px)';
+            slider.style.background = '#333';
+            button.title = 'Switch to light mode';
+        } else {
+            slider.style.transform = 'translateX(0)';
+            slider.style.background = 'white';
+            button.title = 'Switch to dark mode';
+        }
+    }
+}
+
+// Listen for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+    if (!localStorage.getItem('theme')) {
+        const newTheme = e.matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        [elements.themeToggleBtn, elements.themeToggleHeader].forEach(btn => {
+            if (btn) updateToggleButton(btn);
+        });
+    }
+});
+
+// ==============================
+// MAIN APP INITIALIZATION
+// ==============================
+async function initializeApp() {
+    try {
+        const token = localStorage.getItem('token');
         const serverUrl = window.location.origin;
+        
+        // Initialize Socket.io
         socket = io(serverUrl, {
             auth: { token },
-            transports: ['websocket', 'polling']
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000
         });
         
         setupSocketListeners();
@@ -73,32 +210,64 @@ async function initializeApp() {
         // Initialize emoji picker
         initializeEmojiPicker();
         
+        // Setup mobile keyboard handling
+        setupMobileKeyboardHandling();
+        
     } catch (error) {
         console.error('Initialization error:', error);
-        showToast('Failed to initialize. Please try again.', 'error');
-        setTimeout(logout, 2000);
+        showToast('Failed to initialize. Please refresh.', 'error');
     }
 }
 
+// ==============================
+// SOCKET.IO HANDLERS
+// ==============================
 function setupSocketListeners() {
     socket.on('connect', () => {
-        console.log('Connected to server');
+        console.log('✅ Connected to server');
         updateUserStatus(true);
+        reconnectAttempts = 0;
+        showToast('Connected to chat server', 'success');
     });
     
-    socket.on('disconnect', () => {
-        console.log('Disconnected from server');
+    socket.on('disconnect', (reason) => {
+        console.log('❌ Disconnected from server:', reason);
         updateUserStatus(false);
+        
+        if (reason === 'io server disconnect') {
+            // Server initiated disconnect, need to manually reconnect
+            socket.connect();
+        }
     });
     
     socket.on('connect_error', (error) => {
         console.error('Connection error:', error);
-        showToast('Connection error. Please check your internet.', 'error');
+        reconnectAttempts++;
+        
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            showToast('Connection failed. Please check your internet.', 'error');
+        }
     });
     
+    socket.on('reconnecting', (attemptNumber) => {
+        console.log(`🔄 Reconnecting (attempt ${attemptNumber})...`);
+        showToast(`Reconnecting... (${attemptNumber}/${MAX_RECONNECT_ATTEMPTS})`, 'warning');
+    });
+    
+    socket.on('reconnect_failed', () => {
+        console.error('Reconnection failed');
+        showToast('Connection lost. Please refresh the page.', 'error');
+    });
+    
+    // Chat events
     socket.on('newMessage', (message) => {
         renderMessage(message);
         scrollToBottom();
+        
+        // Notification for new messages not from current user
+        if (message.user_id !== currentUser?.id) {
+            showNotification('New message', `${message.username}: ${message.content?.substring(0, 50)}...`);
+        }
     });
     
     socket.on('messageDeleted', ({ messageId }) => {
@@ -119,10 +288,12 @@ function setupSocketListeners() {
     
     socket.on('userOnline', (user) => {
         addOnlineUser(user);
+        showToast(`${user.username} is now online`, 'info');
     });
     
     socket.on('userOffline', (user) => {
         removeOnlineUser(user.id);
+        showToast(`${user.username} went offline`, 'warning');
     });
     
     socket.on('roomOnlineUsers', (users) => {
@@ -132,8 +303,16 @@ function setupSocketListeners() {
     socket.on('messageError', ({ error }) => {
         showToast(error, 'error');
     });
+    
+    socket.on('roomCreated', (room) => {
+        showToast(`New room created: ${room.name}`, 'success');
+        loadRooms(); // Reload rooms list
+    });
 }
 
+// ==============================
+// EVENT LISTENERS
+// ==============================
 function setupEventListeners() {
     // Send message
     elements.sendButton.addEventListener('click', sendMessage);
@@ -145,12 +324,12 @@ function setupEventListeners() {
     });
     
     // Typing indicator
-    elements.messageInput.addEventListener('input', () => {
-        socket.emit('typing', { roomId: currentRoom, isTyping: true });
-        clearTimeout(typingTimeout);
-        typingTimeout = setTimeout(() => {
-            socket.emit('typing', { roomId: currentRoom, isTyping: false });
-        }, 1000);
+    elements.messageInput.addEventListener('input', handleTyping);
+    
+    // Auto-resize textarea
+    elements.messageInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
     });
     
     // Logout
@@ -174,7 +353,7 @@ function setupEventListeners() {
     // Search
     const searchBtn = document.getElementById('searchBtn');
     const closeSearch = document.querySelector('.close-search');
-    const performSearch = document.getElementById('performSearch');
+    const performSearchBtn = document.getElementById('performSearch');
     const globalSearch = document.getElementById('globalSearch');
     
     if (searchBtn) {
@@ -185,8 +364,8 @@ function setupEventListeners() {
         closeSearch.addEventListener('click', closeSearchModal);
     }
     
-    if (performSearch) {
-        performSearch.addEventListener('click', performSearch);
+    if (performSearchBtn) {
+        performSearchBtn.addEventListener('click', performSearch);
     }
     
     if (globalSearch) {
@@ -223,8 +402,40 @@ function setupEventListeners() {
             elements.emojiPicker.style.display = 'none';
         }
     });
+    
+    // New room button
+    const newRoomBtn = document.querySelector('.new-room-btn');
+    if (newRoomBtn) {
+        newRoomBtn.addEventListener('click', createNewRoom);
+    }
+    
+    // Notification button
+    const notificationBtn = document.getElementById('notificationBtn');
+    if (notificationBtn) {
+        notificationBtn.addEventListener('click', toggleNotifications);
+    }
+    
+    // Settings button
+    const settingsBtn = document.getElementById('settingsBtn');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', openSettings);
+    }
+    
+    // Online user click
+    if (elements.onlineUsers) {
+        elements.onlineUsers.addEventListener('click', (e) => {
+            const onlineUser = e.target.closest('.online-user');
+            if (onlineUser) {
+                const userId = onlineUser.dataset.userId;
+                openPrivateChat(userId);
+            }
+        });
+    }
 }
 
+// ==============================
+// ROOM MANAGEMENT
+// ==============================
 async function loadRooms() {
     try {
         const response = await fetch('/api/chat/rooms', {
@@ -254,7 +465,7 @@ function renderRooms(rooms) {
             <i class="fas fa-hashtag"></i>
             <div class="room-info">
                 <div class="room-name">${room.name}</div>
-                <div class="room-meta">${room.message_count || 0} messages</div>
+                <div class="room-meta">${room.message_count || 0} messages • ${room.user_count || 0} users</div>
             </div>
         `;
         
@@ -289,18 +500,53 @@ async function switchRoom(roomId, roomName) {
     // Load messages
     await loadMessages();
     
-    // Update typing indicator
+    // Clear typing indicator
     elements.typingIndicator.textContent = '';
     
     // Close mobile menu on mobile
     if (window.innerWidth <= 1024) {
         toggleMobileMenu();
     }
+    
+    showToast(`Joined ${roomName}`, 'success');
 }
 
+async function createNewRoom() {
+    const roomName = prompt('Enter new room name:');
+    if (!roomName || roomName.trim() === '') return;
+    
+    try {
+        const response = await fetch('/api/chat/rooms', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name: roomName.trim() })
+        });
+        
+        if (!response.ok) throw new Error('Failed to create room');
+        
+        const room = await response.json();
+        
+        if (socket) {
+            socket.emit('roomCreated', room);
+        }
+        
+        showToast(`Room "${room.name}" created`, 'success');
+        
+    } catch (error) {
+        console.error('Error creating room:', error);
+        showToast('Failed to create room', 'error');
+    }
+}
+
+// ==============================
+// MESSAGES
+// ==============================
 async function loadMessages() {
     try {
-        const response = await fetch(`/api/chat/messages/${currentRoom}`, {
+        const response = await fetch(`/api/chat/messages/${currentRoom}?page=${messagesPage}&limit=${messagesLimit}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         
@@ -314,12 +560,18 @@ async function loadMessages() {
         
         messages.forEach(renderMessage);
         
-        // Hide load more button since we're not using pagination
+        // Show/hide load more button
         if (elements.loadMore) {
-            elements.loadMore.style.display = 'none';
+            if (messages.length >= messagesLimit) {
+                elements.loadMore.style.display = 'block';
+            } else {
+                elements.loadMore.style.display = 'none';
+            }
         }
         
-        scrollToBottom();
+        if (messagesPage === 1) {
+            scrollToBottom();
+        }
     } catch (error) {
         console.error('Error loading messages:', error);
         showToast('Failed to load messages', 'error');
@@ -333,10 +585,11 @@ async function loadMoreMessages() {
 
 function renderMessage(msg) {
     const messageElement = document.createElement('div');
-    messageElement.className = `message ${msg.user_id === currentUser.id ? 'user' : 'other'}`;
+    messageElement.className = `message ${msg.user_id === currentUser?.id ? 'user' : 'other'}`;
     messageElement.dataset.messageId = msg.id;
     
     const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const date = new Date(msg.created_at).toLocaleDateString();
     
     if (msg.is_deleted) {
         messageElement.classList.add('deleted');
@@ -375,10 +628,10 @@ function renderMessage(msg) {
         messageElement.innerHTML = `
             <div class="message-header">
                 <span class="message-sender">${msg.username}</span>
-                <span class="message-time">${time}</span>
+                <span class="message-time" title="${date} ${time}">${time}</span>
             </div>
             ${content}
-            ${msg.user_id === currentUser.id ? `
+            ${msg.user_id === currentUser?.id ? `
                 <div class="message-actions">
                     <button class="message-action delete-message" data-message-id="${msg.id}" title="Delete message">
                         <i class="fas fa-trash"></i>
@@ -388,7 +641,7 @@ function renderMessage(msg) {
         `;
         
         // Add delete event listener
-        if (msg.user_id === currentUser.id) {
+        if (msg.user_id === currentUser?.id) {
             const deleteBtn = messageElement.querySelector('.delete-message');
             deleteBtn.addEventListener('click', () => deleteMessage(msg.id));
         }
@@ -444,6 +697,7 @@ async function sendMessage() {
         
         // Clear input and files
         elements.messageInput.value = '';
+        elements.messageInput.style.height = 'auto';
         uploadedFiles = [];
         if (elements.filePreview) {
             elements.filePreview.innerHTML = '';
@@ -460,6 +714,7 @@ async function sendMessage() {
         // Clear typing indicator
         if (socket) {
             socket.emit('typing', { roomId: currentRoom, isTyping: false });
+            isTyping = false;
         }
         
     } catch (error) {
@@ -483,18 +738,54 @@ async function deleteMessage(messageId) {
             socket.emit('deleteMessage', { messageId, roomId: currentRoom });
         }
         
+        showToast('Message deleted', 'success');
+        
     } catch (error) {
         console.error('Error deleting message:', error);
         showToast('Failed to delete message', 'error');
     }
 }
 
+function handleTyping() {
+    if (!isTyping) {
+        socket.emit('typing', { roomId: currentRoom, isTyping: true });
+        isTyping = true;
+    }
+    
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        socket.emit('typing', { roomId: currentRoom, isTyping: false });
+        isTyping = false;
+    }, 1000);
+}
+
+function updateTypingIndicator(userId, username, isTyping) {
+    if (!elements.typingIndicator) return;
+    
+    if (isTyping && userId !== currentUser?.id) {
+        elements.typingIndicator.textContent = `${username} is typing...`;
+    } else {
+        elements.typingIndicator.textContent = '';
+    }
+}
+
+// ==============================
+// FILE UPLOAD
+// ==============================
 async function handleFileUpload(event) {
     const files = Array.from(event.target.files);
     
     for (const file of files) {
-        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        // Validate file size (10MB limit)
+        if (file.size > 10 * 1024 * 1024) {
             showToast(`File ${file.name} is too large (max 10MB)`, 'error');
+            continue;
+        }
+        
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        if (!allowedTypes.includes(file.type)) {
+            showToast(`File type ${file.type} not supported`, 'error');
             continue;
         }
         
@@ -524,8 +815,8 @@ async function handleFileUpload(event) {
                 const previewItem = document.createElement('div');
                 previewItem.className = 'file-preview-item';
                 previewItem.innerHTML = `
-                    <i class="fas fa-file"></i>
-                    <span>${file.name}</span>
+                    <i class="fas fa-${getFileIcon(file.type)}"></i>
+                    <span>${file.name} (${formatFileSize(file.size)})</span>
                     <span class="remove-file" data-file-name="${file.name}">&times;</span>
                 `;
                 
@@ -546,48 +837,65 @@ async function handleFileUpload(event) {
     }
 }
 
+function getFileIcon(fileType) {
+    if (fileType.startsWith('image/')) return 'image';
+    if (fileType === 'application/pdf') return 'file-pdf';
+    if (fileType.includes('word')) return 'file-word';
+    if (fileType.includes('excel')) return 'file-excel';
+    return 'file';
+}
+
+// ==============================
+// EMOJI PICKER
+// ==============================
 function initializeEmojiPicker() {
-    // Simple emoji picker implementation
-    if (elements.emojiPicker) {
-        const emojis = ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '💩', '👻', '💀', '☠️', '👽', '👾', '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'];
+    if (!elements.emojiPicker) return;
+    
+    const emojis = ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '🤡', '💩', '👻', '💀', '☠️', '👽', '👾', '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'];
+    
+    const emojiContainer = document.createElement('div');
+    emojiContainer.className = 'emoji-grid';
+    emojiContainer.style.cssText = `
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 5px;
+        padding: 10px;
+        max-height: 200px;
+        overflow-y: auto;
+    `;
+    
+    emojis.forEach(emoji => {
+        const emojiBtn = document.createElement('button');
+        emojiBtn.textContent = emoji;
+        emojiBtn.style.cssText = `
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 5px;
+            transition: background 0.2s;
+        `;
         
-        const emojiContainer = document.createElement('div');
-        emojiContainer.className = 'emoji-grid';
-        emojiContainer.style.display = 'grid';
-        emojiContainer.style.gridTemplateColumns = 'repeat(8, 1fr)';
-        emojiContainer.style.gap = '5px';
-        emojiContainer.style.padding = '10px';
-        emojiContainer.style.maxHeight = '200px';
-        emojiContainer.style.overflowY = 'auto';
-        
-        emojis.forEach(emoji => {
-            const emojiBtn = document.createElement('button');
-            emojiBtn.textContent = emoji;
-            emojiBtn.style.background = 'none';
-            emojiBtn.style.border = 'none';
-            emojiBtn.style.fontSize = '1.5rem';
-            emojiBtn.style.cursor = 'pointer';
-            emojiBtn.style.padding = '5px';
-            emojiBtn.style.borderRadius = '5px';
-            
-            emojiBtn.addEventListener('click', () => {
-                elements.messageInput.value += emoji;
-                elements.messageInput.focus();
-            });
-            
-            emojiBtn.addEventListener('mouseenter', () => {
-                emojiBtn.style.background = '#f0f0f0';
-            });
-            
-            emojiBtn.addEventListener('mouseleave', () => {
-                emojiBtn.style.background = 'none';
-            });
-            
-            emojiContainer.appendChild(emojiBtn);
+        emojiBtn.addEventListener('click', () => {
+            elements.messageInput.value += emoji;
+            elements.messageInput.focus();
+            elements.messageInput.style.height = 'auto';
+            elements.messageInput.style.height = (elements.messageInput.scrollHeight) + 'px';
         });
         
-        elements.emojiPicker.appendChild(emojiContainer);
-    }
+        emojiBtn.addEventListener('mouseenter', () => {
+            emojiBtn.style.background = '#f0f0f0';
+        });
+        
+        emojiBtn.addEventListener('mouseleave', () => {
+            emojiBtn.style.background = 'none';
+        });
+        
+        emojiContainer.appendChild(emojiBtn);
+    });
+    
+    elements.emojiPicker.appendChild(emojiContainer);
 }
 
 function toggleEmojiPicker() {
@@ -602,6 +910,9 @@ function toggleEmojiPicker() {
     }
 }
 
+// ==============================
+// ONLINE USERS
+// ==============================
 async function loadOnlineUsers() {
     try {
         const response = await fetch('/api/auth/online-users', {
@@ -624,7 +935,7 @@ function renderOnlineUsers(users) {
     elements.onlineCount.textContent = users.length;
     
     users.forEach(user => {
-        if (user.id === currentUser.id) return;
+        if (user.id === currentUser?.id) return;
         
         const userElement = document.createElement('div');
         userElement.className = 'online-user';
@@ -642,7 +953,7 @@ function renderOnlineUsers(users) {
 }
 
 function addOnlineUser(user) {
-    if (!elements.onlineUsers || !elements.onlineCount || user.id === currentUser.id) return;
+    if (!elements.onlineUsers || !elements.onlineCount || user.id === currentUser?.id) return;
     
     if (!document.querySelector(`[data-user-id="${user.id}"]`)) {
         const userElement = document.createElement('div');
@@ -665,17 +976,8 @@ function removeOnlineUser(userId) {
     const userElement = document.querySelector(`[data-user-id="${userId}"]`);
     if (userElement && elements.onlineCount) {
         userElement.remove();
-        elements.onlineCount.textContent = parseInt(elements.onlineCount.textContent || '0') - 1;
-    }
-}
-
-function updateTypingIndicator(userId, username, isTyping) {
-    if (!elements.typingIndicator) return;
-    
-    if (isTyping) {
-        elements.typingIndicator.textContent = `${username} is typing...`;
-    } else {
-        elements.typingIndicator.textContent = '';
+        const currentCount = parseInt(elements.onlineCount.textContent || '0');
+        elements.onlineCount.textContent = Math.max(0, currentCount - 1);
     }
 }
 
@@ -689,6 +991,32 @@ function updateUserStatus(isOnline) {
     if (elements.userStatus) {
         elements.userStatus.textContent = isOnline ? 'Online' : 'Offline';
         elements.userStatus.className = `status ${isOnline ? 'online' : 'offline'}`;
+    }
+}
+
+// ==============================
+// SEARCH FUNCTIONALITY
+// ==============================
+function openSearchModal() {
+    if (elements.searchModal) {
+        elements.searchModal.style.display = 'flex';
+        const globalSearch = document.getElementById('globalSearch');
+        if (globalSearch) {
+            globalSearch.focus();
+        }
+    }
+}
+
+function closeSearchModal() {
+    if (elements.searchModal) {
+        elements.searchModal.style.display = 'none';
+        const globalSearch = document.getElementById('globalSearch');
+        if (globalSearch) {
+            globalSearch.value = '';
+        }
+        if (elements.searchResults) {
+            elements.searchResults.innerHTML = '';
+        }
     }
 }
 
@@ -766,29 +1094,9 @@ function highlightSearchTerm(text, term) {
     return escapeHtml(text).replace(regex, '<mark>$1</mark>');
 }
 
-function openSearchModal() {
-    if (elements.searchModal) {
-        elements.searchModal.style.display = 'flex';
-        const globalSearch = document.getElementById('globalSearch');
-        if (globalSearch) {
-            globalSearch.focus();
-        }
-    }
-}
-
-function closeSearchModal() {
-    if (elements.searchModal) {
-        elements.searchModal.style.display = 'none';
-        const globalSearch = document.getElementById('globalSearch');
-        if (globalSearch) {
-            globalSearch.value = '';
-        }
-        if (elements.searchResults) {
-            elements.searchResults.innerHTML = '';
-        }
-    }
-}
-
+// ==============================
+// MOBILE FUNCTIONALITY
+// ==============================
 function toggleMobileMenu() {
     if (elements.sidebar && elements.mobileOverlay) {
         elements.sidebar.classList.toggle('active');
@@ -797,6 +1105,65 @@ function toggleMobileMenu() {
     }
 }
 
+function setupMobileKeyboardHandling() {
+    // Only on mobile devices
+    if (!/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return;
+    
+    const messageInput = elements.messageInput;
+    const messagesContainer = document.querySelector('.messages-container');
+    
+    if (!messageInput || !messagesContainer) return;
+    
+    // Focus handling
+    messageInput.addEventListener('focus', () => {
+        setTimeout(() => {
+            // Scroll messages to bottom
+            scrollToBottom();
+            
+            // Add visual feedback
+            document.body.classList.add('keyboard-open');
+            
+            // Adjust container height
+            messagesContainer.style.maxHeight = '60vh';
+            
+            // For iOS, we need extra handling
+            if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 300);
+            }
+        }, 100);
+    });
+    
+    messageInput.addEventListener('blur', () => {
+        setTimeout(() => {
+            document.body.classList.remove('keyboard-open');
+            messagesContainer.style.maxHeight = '';
+        }, 300);
+    });
+    
+    // Handle orientation changes
+    window.addEventListener('orientationchange', () => {
+        setTimeout(() => {
+            scrollToBottom();
+        }, 300);
+    });
+    
+    // Handle window resize (for virtual keyboard)
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            if (document.activeElement === messageInput) {
+                scrollToBottom();
+            }
+        }, 100);
+    });
+}
+
+// ==============================
+// MODALS & MODAL WINDOWS
+// ==============================
 function openImageModal(imageUrl) {
     const modal = document.createElement('div');
     modal.className = 'image-modal';
@@ -820,9 +1187,33 @@ function openImageModal(imageUrl) {
     });
 }
 
+function openPrivateChat(userId) {
+    showToast('Private chat feature coming soon!', 'info');
+    // Implement private chat functionality here
+}
+
+function toggleNotifications() {
+    showToast('Notifications toggled', 'info');
+    // Implement notification settings
+}
+
+function openSettings() {
+    showToast('Settings panel coming soon!', 'info');
+    // Implement settings modal
+}
+
+// ==============================
+// UTILITY FUNCTIONS
+// ==============================
 function scrollToBottom() {
     if (elements.messagesDiv) {
         elements.messagesDiv.scrollTop = elements.messagesDiv.scrollHeight;
+    }
+}
+
+function joinRoom(roomId) {
+    if (socket) {
+        socket.emit('joinRoom', roomId);
     }
 }
 
@@ -834,14 +1225,12 @@ function logout() {
     }).catch(console.error);
     
     // Clear local storage
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.clear();
     
     // Redirect to login
     window.location.href = 'index.html';
 }
 
-// Utility functions
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -857,7 +1246,13 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+// ==============================
+// NOTIFICATIONS & TOASTS
+// ==============================
 function showToast(message, type = 'info') {
+    // Remove existing toasts
+    document.querySelectorAll('.toast').forEach(toast => toast.remove());
+    
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.textContent = message;
@@ -875,164 +1270,99 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
-// Add toast styles if not already present
-if (!document.querySelector('#toast-styles')) {
-    const toastStyles = document.createElement('style');
-    toastStyles.id = 'toast-styles';
-    toastStyles.textContent = `
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 20px;
-            border-radius: 8px;
-            color: white;
-            font-weight: 500;
-            z-index: 9999;
-            transform: translateX(100%);
-            opacity: 0;
-            transition: all 0.3s ease;
-            max-width: 300px;
-        }
-        .toast.show {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        .toast-info { background: #007AFF; }
-        .toast-success { background: #34C759; }
-        .toast-error { background: #FF3B30; }
-        .toast-warning { background: #FF9500; }
-    `;
-    document.head.appendChild(toastStyles);
-}
-
-// Add image modal styles if not already present
-if (!document.querySelector('#image-modal-styles')) {
-    const imageModalStyles = document.createElement('style');
-    imageModalStyles.id = 'image-modal-styles';
-    imageModalStyles.textContent = `
-        .image-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-        }
-        .image-modal-content {
-            position: relative;
-            max-width: 90%;
-            max-height: 90%;
-        }
-        .image-modal-content img {
-            max-width: 100%;
-            max-height: 90vh;
-            border-radius: 8px;
-        }
-        .close-modal {
-            position: absolute;
-            top: -40px;
-            right: 0;
-            background: none;
-            border: none;
-            color: white;
-            font-size: 2rem;
-            cursor: pointer;
-        }
-        .message-image {
-            max-width: 300px;
-            max-height: 300px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: transform 0.3s ease;
-        }
-        .message-image:hover {
-            transform: scale(1.02);
-        }
-        .highlight {
-            animation: highlightPulse 2s ease;
-        }
-        @keyframes highlightPulse {
-            0%, 100% { background: transparent; }
-            50% { background: rgba(255, 235, 59, 0.3); }
-        }
-        .message-actions {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .message:hover .message-actions {
-            opacity: 1;
-        }
-        .message-action {
-            background: rgba(0, 0, 0, 0.1);
-            border: none;
-            border-radius: 4px;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            color: inherit;
-            font-size: 0.8rem;
-        }
-        .message.user .message-action {
-            background: rgba(255, 255, 255, 0.2);
-        }
-    `;
-    document.head.appendChild(imageModalStyles);
-}
-
-// Auto-resize textarea
-if (elements.messageInput) {
-    elements.messageInput.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
-    });
-}
-
-// Join room on load
-function joinRoom(roomId) {
-    if (socket) {
-        socket.emit('joinRoom', roomId);
+function showNotification(title, body) {
+    // Check if notifications are supported and permission is granted
+    if (!('Notification' in window)) return;
+    
+    if (Notification.permission === 'granted') {
+        new Notification(title, { body, icon: '/icon-192x192.png' });
+    } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                new Notification(title, { body, icon: '/icon-192x192.png' });
+            }
+        });
     }
 }
 
-// Initialize room joining
-if (socket) {
-    socket.on('connect', () => {
-        joinRoom(currentRoom);
+// ==============================
+// VERSION CHECK & UPDATE HANDLING
+// ==============================
+async function checkForAppUpdates() {
+    try {
+        const response = await fetch('/version.json?v=' + Date.now());
+        const data = await response.json();
+        
+        console.log(`📱 App version check: ${data.version}`);
+        
+        // Check if update is available
+        if (data.update_required || data.update_message) {
+            console.log('🔄 Update notification available');
+            
+            // Show update notification
+            if (data.update_message) {
+                showToast(data.update_message, 'info');
+            }
+        }
+    } catch (error) {
+        console.log('Version check failed:', error);
+    }
+}
+
+// Listen for service worker update messages
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', event => {
+        if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+            showToast(`Update available: ${event.data.message}`, 'info');
+        }
     });
 }
 
-
-// Add to chat.js - offline detection
+// ==============================
+// OFFLINE DETECTION
+// ==============================
 window.addEventListener('online', () => {
-  showToast('You are back online', 'success');
-  document.querySelector('.offline-indicator')?.classList.remove('show');
-  
-  // Sync messages when back online
-  if (socket && !socket.connected) {
-    socket.connect();
-  }
+    showToast('You are back online', 'success');
+    document.querySelector('.offline-indicator')?.classList.remove('show');
+    
+    // Reconnect socket if disconnected
+    if (socket && !socket.connected) {
+        socket.connect();
+    }
 });
 
 window.addEventListener('offline', () => {
-  showToast('You are offline', 'warning');
-  const offlineIndicator = document.createElement('div');
-  offlineIndicator.className = 'offline-indicator show';
-  offlineIndicator.textContent = 'You are offline. Some features may not work.';
-  document.body.appendChild(offlineIndicator);
+    showToast('You are offline', 'warning');
+    const offlineIndicator = document.createElement('div');
+    offlineIndicator.className = 'offline-indicator show';
+    offlineIndicator.textContent = 'You are offline. Some features may not work.';
+    document.body.appendChild(offlineIndicator);
 });
 
 // Check initial connection
 if (!navigator.onLine) {
-  showToast('You are offline. Connecting...', 'warning');
+    showToast('You are offline. Connecting...', 'warning');
 }
+
+// ==============================
+// WINDOW EVENT HANDLERS
+// ==============================
+window.addEventListener('beforeunload', () => {
+    // Clean up before leaving
+    if (socket) {
+        socket.emit('userLeaving');
+    }
+});
+
+// Export for debugging
+window.chatApp = {
+    socket,
+    currentRoom,
+    currentUser,
+    switchRoom,
+    sendMessage,
+    logout,
+    toggleTheme
+};
+
+console.log('📱 Chat.js loaded successfully');

@@ -1,17 +1,18 @@
 {
-  "version": "1.0.0",
-  "build_date": "2024-01-20",
+  "version": "1.1.0",
+  "build_date": "2024-01-31",
   "changelog": [
-    "Initial PWA release",
-    "Real-time chat with Socket.io",
-    "File upload support",
-    "Multiple chat rooms",
-    "Online user indicators",
-    "Mobile responsive design",
-    "PWA installation support"
+    "FIXED: Auth page height - no scrolling needed",
+    "FIXED: Mobile keyboard overlap issues",
+    "FIXED: Theme toggle functionality",
+    "IMPROVED: Mobile responsive design",
+    "OPTIMIZED: PWA installation flow",
+    "ENHANCED: Dark mode with CSS variables",
+    "UPDATED: Chat UI improvements",
+    "BUG FIXES: Various UI/UX fixes"
   ],
   "update_required": false,
-  "update_message": "",
+  "update_message": "New update available with improved mobile experience!",
   "update_url": "",
   "pwa_features": {
     "installable": true,

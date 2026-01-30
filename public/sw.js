@@ -1,5 +1,5 @@
 // Service Worker with Version-Based Caching
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0'; // CHANGED FROM 1.0.0 TO 1.1.0
 const CACHE_NAME = `chat-app-v${APP_VERSION}`;
 
 // Files to cache immediately (App Shell)
@@ -15,6 +15,8 @@ const PRECACHE_URLS = [
   '/icon-512x512.png',
   '/version.json'
 ];
+
+// ... REST OF YOUR sw.js CODE REMAINS THE SAME ...;
 
 // ======================
 // INSTALL EVENT
